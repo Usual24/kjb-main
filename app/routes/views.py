@@ -2,6 +2,7 @@ from datetime import datetime
 from sqlalchemy.orm import selectinload
 from flask import (
     Blueprint,
+    abort,
     render_template,
     request,
     redirect,
@@ -380,11 +381,10 @@ def clear_mailbox():
 
 @bp.route("/media/<path:filename>")
 def media(filename):
-    # Keep an explicit local import so this endpoint does not rely on module-level
-    # symbols when serving uploaded files in different runtime reload scenarios.
-    from flask import current_app as flask_current_app
-
-    return send_from_directory(flask_current_app.config["UPLOAD_FOLDER"], filename)
+    upload_folder = current_app.config.get("UPLOAD_FOLDER")
+    if not upload_folder:
+        abort(404)
+    return send_from_directory(upload_folder, filename)
 
 
 @bp.route("/admin", methods=["GET", "POST"])
