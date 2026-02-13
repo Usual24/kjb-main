@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KJB</title>
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-toggle" id="drawerToggle" type="button" aria-label="메뉴 열기" aria-controls="mobileDrawer" aria-expanded="false">
+        ☰
+      </button>
+      <div class="logo">KJB</div>
+    </div>
+    {% if current_user %}
+    <nav class="nav-links desktop-nav">
+      <a href="/chat">채팅</a>
+      <a href="/sendkc">송금</a>
+      <a href="/shop">상점</a>
+      <a href="/mailbox">알림</a>
+      <a href="/mypage">마이페이지</a>
+      {% if current_user.is_admin %}
+      <a href="/admin">관리자</a>
+      {% endif %}
+      <a href="/logout">로그아웃</a>
+    </nav>
+    <div class="user-pill desktop-user">
+      <img src="{{ current_user.avatar_url|media }}" alt="avatar">
+      <span>{{ current_user.name }}</span>
+      <span class="kc">KC {{ current_user.kc_points }}</span>
+    </div>
+    {% else %}
+    <nav class="nav-links desktop-nav">
+      <a href="/signin">로그인</a>
+      <a href="/signup">회원가입</a>
+    </nav>
+    {% endif %}
+  </header>
+
+  <div class="drawer-backdrop" id="drawerBackdrop" aria-hidden="true"></div>
+  <aside class="mobile-drawer" id="mobileDrawer" aria-hidden="true">
+    <div class="drawer-header">
+      <span>메뉴</span>
+      <button class="drawer-close" id="drawerClose" type="button" aria-label="메뉴 닫기">닫기</button>
+    </div>
+    <div class="drawer-content">
+      {% if current_user %}
+      <div class="user-pill drawer-user">
+        <img src="{{ current_user.avatar_url|media }}" alt="avatar">
+        <span>{{ current_user.name }}</span>
+        <span class="kc">KC {{ current_user.kc_points }}</span>
+      </div>
+      <nav class="nav-links drawer-nav">
+        <a href="/chat">채팅</a>
+        <a href="/sendkc">송금</a>
+        <a href="/shop">상점</a>
+        <a href="/mailbox">알림</a>
+        <a href="/mypage">마이페이지</a>
+        {% if current_user.is_admin %}
+        <a href="/admin">관리자</a>
+        {% endif %}
+        <a href="/logout">로그아웃</a>
+      </nav>
+      {% else %}
+      <nav class="nav-links drawer-nav">
+        <a href="/signin">로그인</a>
+        <a href="/signup">회원가입</a>
+      </nav>
+      {% endif %}
+      {% block drawer_extra %}{% endblock %}
+    </div>
+  </aside>
+
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <div class="flash-wrapper">
+        {% for message in messages %}
+          <div class="flash">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+
+  <script>
+    document.querySelectorAll('form[data-confirm]').forEach((form) => {
+      form.addEventListener('submit', (event) => {
+        const message = form.getAttribute('data-confirm');
+        if (message && !window.confirm(message)) {
+          event.preventDefault();
+        }
+      });
+    });
+
+    const drawer = document.getElementById('mobileDrawer');
+    const drawerBackdrop = document.getElementById('drawerBackdrop');
+    const drawerToggle = document.getElementById('drawerToggle');
+    const drawerClose = document.getElementById('drawerClose');
+
+    const closeDrawer = () => {
+      if (!drawer) return;
+      drawer.classList.remove('open');
+      drawerBackdrop.classList.remove('open');
+      drawer.setAttribute('aria-hidden', 'true');
+      drawerToggle?.setAttribute('aria-expanded', 'false');
+    };
+
+    const openDrawer = () => {
+      if (!drawer) return;
+      drawer.classList.add('open');
+      drawerBackdrop.classList.add('open');
+      drawer.setAttribute('aria-hidden', 'false');
+      drawerToggle?.setAttribute('aria-expanded', 'true');
+    };
+
+    drawerToggle?.addEventListener('click', () => {
+      if (drawer.classList.contains('open')) {
+        closeDrawer();
+      } else {
+        openDrawer();
+      }
+    });
+
+    drawerClose?.addEventListener('click', closeDrawer);
+    drawerBackdrop?.addEventListener('click', closeDrawer);
+    drawer?.querySelectorAll('a').forEach((link) => {
+      link.addEventListener('click', closeDrawer);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,319 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="admin">
+  <h2>관리자 대시보드</h2>
+  <div class="admin-grid">
+    <div class="admin-card">
+      <h3>통계</h3>
+      <p>현재 유저수: {{ stats.user_count }}</p>
+      <p>채널 수: {{ stats.channel_count }}</p>
+      <p>온라인 유저수: {{ stats.online_count }}</p>
+    </div>
+    <div class="admin-card">
+      <h3>KC 관리</h3>
+      <form method="post">
+        <input type="hidden" name="action" value="kc_adjust">
+        <label>대상 이메일 앞부분</label>
+        <input type="text" name="target" required>
+        <label>KC 변동 (+/-)</label>
+        <input type="number" name="delta" required>
+        <button class="btn primary" type="submit">조정</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="admin-section">
+    <h3>상점 요청 큐</h3>
+    {% for req in shop_requests %}
+      <div class="admin-row">
+        <span>{{ req.user.name }} → {{ req.item.name }} ({{ req.item.kc_cost }} KC)</span>
+        <form method="post" class="inline">
+          <input type="hidden" name="action" value="shop_decision">
+          <input type="hidden" name="request_id" value="{{ req.id }}">
+          <button class="btn success" name="decision" value="approve">승인</button>
+          <button class="btn danger" name="decision" value="deny">거절</button>
+        </form>
+      </div>
+    {% else %}
+      <p class="empty">대기 중인 요청이 없습니다.</p>
+    {% endfor %}
+  </div>
+
+  <div class="admin-section">
+    <h3>채널 관리</h3>
+    <form method="post" class="admin-form">
+      <input type="hidden" name="action" value="channel_create">
+      <input type="text" name="slug" placeholder="영문 채널 ID" required>
+      <input type="text" name="name" placeholder="표시 이름" required>
+      <input type="text" name="description" placeholder="설명">
+      <input type="number" name="priority" placeholder="우선순위">
+      <label class="check">
+        <input type="checkbox" name="default_can_view" checked>
+        기본 보기 허용
+      </label>
+      <label class="check">
+        <input type="checkbox" name="default_can_read" checked>
+        기본 읽기 허용
+      </label>
+      <label class="check">
+        <input type="checkbox" name="default_can_send" checked>
+        기본 전송 허용
+      </label>
+      <button class="btn primary" type="submit">채널 추가</button>
+    </form>
+    {% for channel in channels %}
+      <div class="admin-row">
+        <form method="post" class="inline admin-inline">
+          <input type="hidden" name="action" value="channel_update">
+          <input type="hidden" name="channel_id" value="{{ channel.id }}">
+          <input type="text" name="slug" value="{{ channel.slug }}" required>
+          <input type="text" name="name" value="{{ channel.name }}" required>
+          <input type="text" name="description" value="{{ channel.description }}">
+          <input type="number" name="priority" value="{{ channel.priority }}">
+          <label class="check">
+            <input type="checkbox" name="default_can_view" {% if channel.default_can_view %}checked{% endif %}>
+            보기
+          </label>
+          <label class="check">
+            <input type="checkbox" name="default_can_read" {% if channel.default_can_read %}checked{% endif %}>
+            읽기
+          </label>
+          <label class="check">
+            <input type="checkbox" name="default_can_send" {% if channel.default_can_send %}checked{% endif %}>
+            전송
+          </label>
+          <button class="btn secondary" type="submit">수정</button>
+        </form>
+        <form method="post" class="inline" data-confirm="채널을 삭제할까요?">
+          <input type="hidden" name="action" value="channel_delete">
+          <input type="hidden" name="channel_id" value="{{ channel.id }}">
+          <button class="btn danger" type="submit">삭제</button>
+        </form>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="admin-section">
+    <h3>상점 품목 관리</h3>
+    <form method="post" class="admin-form" enctype="multipart/form-data">
+      <input type="hidden" name="action" value="shop_item_create">
+      <input type="text" name="name" placeholder="상품명" required>
+      <input type="text" name="description" placeholder="설명">
+      <input type="number" name="kc_cost" placeholder="KC" required>
+      <input type="file" name="image_file" accept="image/*">
+      <input type="number" name="quantity" placeholder="수량 (비우면 무제한)">
+      <input type="number" name="priority" placeholder="우선순위">
+      <button class="btn primary" type="submit">등록</button>
+    </form>
+    {% for item in items %}
+      <div class="admin-row">
+        <span>{{ item.name }} ({{ item.kc_cost }} KC)</span>
+        <form method="post" class="inline" data-confirm="상품을 삭제할까요?">
+          <input type="hidden" name="action" value="shop_item_delete">
+          <input type="hidden" name="item_id" value="{{ item.id }}">
+          <button class="btn danger" type="submit">삭제</button>
+        </form>
+      </div>
+    {% endfor %}
+  </div>
+
+  <div class="admin-section">
+    <h3>채널 권한 관리</h3>
+    <form method="post" class="admin-form">
+      <input type="hidden" name="action" value="channel_permission_upsert">
+      <select name="channel_id" required>
+        <option value="">채널 선택</option>
+        {% for channel in channels %}
+          <option value="{{ channel.id }}">{{ channel.name }}</option>
+        {% endfor %}
+      </select>
+      <select name="user_id" required>
+        <option value="">사용자 선택</option>
+        {% for user in users %}
+          <option value="{{ user.id }}">{{ user.name }} ({{ user.email_prefix }})</option>
+        {% endfor %}
+      </select>
+      <label class="check">
+        <input type="checkbox" name="can_view" checked>
+        보기
+      </label>
+      <label class="check">
+        <input type="checkbox" name="can_read" checked>
+        읽기
+      </label>
+      <label class="check">
+        <input type="checkbox" name="can_send" checked>
+        전송
+      </label>
+      <button class="btn primary" type="submit">권한 저장</button>
+    </form>
+    {% for permission in channel_permissions %}
+      <div class="admin-row">
+        <span>{{ permission.user.name }} → {{ permission.channel.name }}</span>
+        <span class="badge">
+          {% if permission.can_view %}보기{% else %}보기없음{% endif %} /
+          {% if permission.can_read %}읽기{% else %}읽기없음{% endif %} /
+          {% if permission.can_send %}전송{% else %}전송없음{% endif %}
+        </span>
+        <form method="post" class="inline" data-confirm="권한을 삭제할까요?">
+          <input type="hidden" name="action" value="channel_permission_delete">
+          <input type="hidden" name="permission_id" value="{{ permission.id }}">
+          <button class="btn danger" type="submit">삭제</button>
+        </form>
+      </div>
+    {% else %}
+      <p class="empty">등록된 채널 권한이 없습니다.</p>
+    {% endfor %}
+  </div>
+
+  <div class="admin-section">
+    <h3>이모지 관리</h3>
+    <form method="post" class="admin-form" enctype="multipart/form-data">
+      <input type="hidden" name="action" value="emoji_create">
+      <input type="text" name="name" placeholder="이모지 이름 (예: happy_cat)" required>
+      <input type="file" name="image_file" accept="image/*" required>
+      <label class="check">
+        <input type="checkbox" name="is_public">
+        모두 사용 가능 (기본 이모지)
+      </label>
+      <button class="btn primary" type="submit">이모지 등록</button>
+    </form>
+    {% for emoji in emojis %}
+      <div class="admin-row">
+        <span>:{{ emoji.name }}:</span>
+        <img src="{{ emoji.image_url|media }}" class="emoji-preview" alt="emoji">
+        <span class="badge">{% if emoji.is_public %}기본 이모지{% else %}권한 필요{% endif %}</span>
+        <form method="post" class="inline">
+          <input type="hidden" name="action" value="emoji_toggle_public">
+          <input type="hidden" name="emoji_id" value="{{ emoji.id }}">
+          <button class="btn secondary" type="submit">{% if emoji.is_public %}기본 해제{% else %}기본 지정{% endif %}</button>
+        </form>
+        <form method="post" class="inline" data-confirm="이모지를 삭제할까요?">
+          <input type="hidden" name="action" value="emoji_delete">
+          <input type="hidden" name="emoji_id" value="{{ emoji.id }}">
+          <button class="btn danger" type="submit">삭제</button>
+        </form>
+      </div>
+    {% else %}
+      <p class="empty">등록된 이모지가 없습니다.</p>
+    {% endfor %}
+  </div>
+
+  <div class="admin-section">
+    <h3>이모지 권한 관리</h3>
+    <form method="post" class="admin-form">
+      <input type="hidden" name="action" value="emoji_permission_upsert">
+      <select name="user_id" required>
+        <option value="">사용자 선택</option>
+        {% for user in users %}
+          <option value="{{ user.id }}">{{ user.name }} ({{ user.email_prefix }})</option>
+        {% endfor %}
+      </select>
+      <select name="emoji_id" required>
+        <option value="">이모지 선택</option>
+        {% for emoji in emojis %}
+          <option value="{{ emoji.id }}">:{{ emoji.name }}:</option>
+        {% endfor %}
+      </select>
+      <button class="btn primary" type="submit">권한 부여</button>
+    </form>
+    {% for permission in emoji_permissions %}
+      <div class="admin-row">
+        <span>{{ permission.user.name }} → :{{ permission.emoji.name }}:</span>
+        <form method="post" class="inline" data-confirm="권한을 삭제할까요?">
+          <input type="hidden" name="action" value="emoji_permission_delete">
+          <input type="hidden" name="permission_id" value="{{ permission.id }}">
+          <button class="btn danger" type="submit">삭제</button>
+        </form>
+      </div>
+    {% else %}
+      <p class="empty">등록된 이모지 권한이 없습니다.</p>
+    {% endfor %}
+  </div>
+
+  <div class="admin-section">
+    <h3>엑세서리 관리</h3>
+    <form method="post" class="admin-form" enctype="multipart/form-data">
+      <input type="hidden" name="action" value="accessory_create">
+      <input type="text" name="name" placeholder="엑세서리 이름" required>
+      <input type="color" name="text_color" value="#f7f9ff">
+      <input type="file" name="image_file" accept="image/*" required>
+      <button class="btn primary" type="submit">엑세서리 등록</button>
+    </form>
+    {% for accessory in accessories %}
+      <div class="admin-row">
+        <span style="color: {{ accessory.text_color }};">{{ accessory.name }}</span>
+        <img src="{{ accessory.image_url|media }}" class="name-accessory" alt="accessory">
+        <form method="post" class="inline" data-confirm="엑세서리를 삭제할까요?">
+          <input type="hidden" name="action" value="accessory_delete">
+          <input type="hidden" name="accessory_id" value="{{ accessory.id }}">
+          <button class="btn danger" type="submit">삭제</button>
+        </form>
+      </div>
+    {% else %}
+      <p class="empty">등록된 엑세서리가 없습니다.</p>
+    {% endfor %}
+  </div>
+
+  <div class="admin-section">
+    <h3>엑세서리 권한 관리</h3>
+    <form method="post" class="admin-form">
+      <input type="hidden" name="action" value="accessory_permission_upsert">
+      <select name="user_id" required>
+        <option value="">사용자 선택</option>
+        {% for user in users %}
+          <option value="{{ user.id }}">{{ user.name }} ({{ user.email_prefix }})</option>
+        {% endfor %}
+      </select>
+      <select name="accessory_id" required>
+        <option value="">엑세서리 선택</option>
+        {% for accessory in accessories %}
+          <option value="{{ accessory.id }}">{{ accessory.name }}</option>
+        {% endfor %}
+      </select>
+      <label class="check">
+        <input type="checkbox" name="set_active" checked>
+        즉시 활성화
+      </label>
+      <button class="btn primary" type="submit">권한 저장</button>
+    </form>
+    {% for permission in accessory_permissions %}
+      <div class="admin-row">
+        <span>{{ permission.user.name }} → {{ permission.accessory.name }}</span>
+        <span class="badge">{% if permission.is_active %}활성{% else %}비활성{% endif %}</span>
+        <form method="post" class="inline">
+          <input type="hidden" name="action" value="accessory_permission_activate">
+          <input type="hidden" name="permission_id" value="{{ permission.id }}">
+          <button class="btn secondary" type="submit">활성화</button>
+        </form>
+        <form method="post" class="inline" data-confirm="권한을 삭제할까요?">
+          <input type="hidden" name="action" value="accessory_permission_delete">
+          <input type="hidden" name="permission_id" value="{{ permission.id }}">
+          <button class="btn danger" type="submit">삭제</button>
+        </form>
+      </div>
+    {% else %}
+      <p class="empty">등록된 엑세서리 권한이 없습니다.</p>
+    {% endfor %}
+  </div>
+
+  <div class="admin-section">
+    <h3>사용자 관리</h3>
+    {% for user in users %}
+      <div class="admin-row">
+        <span>{{ user.name }} ({{ user.email_prefix }})</span>
+        {% if not user.is_admin %}
+          <form method="post" class="inline" data-confirm="사용자를 삭제할까요?">
+            <input type="hidden" name="action" value="user_delete">
+            <input type="hidden" name="target" value="{{ user.email_prefix }}">
+            <button class="btn danger" type="submit">삭제</button>
+          </form>
+        {% else %}
+          <span class="badge">ADMIN</span>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

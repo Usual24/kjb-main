@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block body_class %}chat-page{% endblock %}
+
+{% block drawer_extra %}
+<div class="drawer-section">
+  <h3>채널</h3>
+  <ul class="drawer-channel-list">
+    {% for ch in channels %}
+      <li class="{% if ch.id == channel.id %}active{% endif %}" data-channel-id="{{ ch.id }}" data-channel-slug="{{ ch.slug }}">
+        <a href="/chat?id={{ ch.slug }}" data-channel-id="{{ ch.id }}">{{ ch.name }}{% if ch.id in unread_channel_ids %}<span class="unread-dot" aria-label="읽지 않음"></span>{% endif %}</a>
+      </li>
+    {% endfor %}
+  </ul>
+</div>
+<div class="drawer-section">
+  <h3>온라인</h3>
+  <ul data-online-list></ul>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="chat-layout">
+  <aside class="sidebar">
+    <h3>채널</h3>
+    <ul>
+      {% for ch in channels %}
+        <li class="{% if ch.id == channel.id %}active{% endif %}" data-channel-id="{{ ch.id }}" data-channel-slug="{{ ch.slug }}">
+          <a href="/chat?id={{ ch.slug }}" data-channel-id="{{ ch.id }}">{{ ch.name }}{% if ch.id in unread_channel_ids %}<span class="unread-dot" aria-label="읽지 않음"></span>{% endif %}</a>
+        </li>
+      {% endfor %}
+    </ul>
+  </aside>
+
+  <main class="chat-main" data-channel="{{ channel.slug }}" data-channel-id="{{ channel.id }}" data-can-send="{{ 'true' if can_send else 'false' }}">
+    <div class="chat-header">
+      <div>
+        <h2>{{ channel.name }}</h2>
+        <p>{{ channel.description }}</p>
+      </div>
+    </div>
+    <div id="chatMessages" class="chat-messages">
+      {% if not can_read %}
+        <p class="empty">읽기 권한이 없습니다.</p>
+      {% else %}
+        {% for message in messages %}
+          <div class="message" data-message-id="{{ message.id }}" data-user-id="{{ message.user_id }}">
+            <a href="/profile?usr={{ message.user_prefix }}" class="avatar-link">
+              <img src="{{ message.avatar }}" alt="avatar">
+            </a>
+            <div class="message-body">
+              <div class="message-meta">
+                <a href="/profile?usr={{ message.user_prefix }}" {% if message.name_color %}style="color: {{ message.name_color }};"{% endif %}>{{ message.user_name }}</a>
+                {% if message.accessory_image %}
+                  <img src="{{ message.accessory_image }}" class="name-accessory" alt="accessory">
+                {% endif %}
+                <span>{{ message.created_at }}</span>
+                {% if message.updated_at and message.updated_at != message.created_at %}
+                  <span class="edited">수정됨</span>
+                {% endif %}
+              </div>
+              {% if message.reply_to %}
+                <div class="reply-preview">↳ {{ message.reply_to }}</div>
+              {% endif %}
+              <div class="message-content">{{ message.rendered_content|safe }}</div>
+            </div>
+          </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+    <div id="replyBanner" class="reply-banner hidden"></div>
+    <div id="typingIndicator" class="typing-indicator hidden"></div>
+    <div class="chat-input">
+      <textarea id="chatInput" placeholder="메시지를 입력하세요..." {% if not can_send %}disabled{% endif %}></textarea>
+      <button class="btn primary" id="sendButton" {% if not can_send %}disabled{% endif %}>전송</button>
+      {% if not can_send %}
+        <p class="hint">이 채널은 메시지 전송 권한이 없습니다.</p>
+      {% endif %}
+    </div>
+  </main>
+
+  <aside class="online">
+    <h3>온라인</h3>
+    <ul data-online-list></ul>
+  </aside>
+</div>
+
+<div id="contextMenu" class="context-menu hidden">
+  <button data-action="reply">답장</button>
+  <button data-action="edit">수정</button>
+  <button data-action="delete">삭제</button>
+</div>
+
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+  window.KJB_CURRENT_USER_ID = {{ current_user.id }};
+  window.KJB_IS_ADMIN = {{ 'true' if current_user.is_admin else 'false' }};
+</script>
+<script src="/static/js/chat.js"></script>
+{% endblock %}

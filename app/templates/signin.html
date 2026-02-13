@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="auth">
+  <div class="auth-card">
+    <h2>로그인</h2>
+    <form method="post">
+      <label>이메일</label>
+      <input type="email" name="email" required>
+      <label>비밀번호</label>
+      <input type="password" name="password" required>
+      <label class="checkbox">
+        <input type="checkbox" name="remember"> 30일 자동로그인
+      </label>
+      <button class="btn primary" type="submit">로그인</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="mailbox">
+  <div class="mailbox-header">
+    <h2>내 알림</h2>
+    <form method="post" action="/mailbox/clear" data-confirm="알림을 모두 삭제할까요?">
+      <button class="btn danger" type="submit">알림 전체 삭제</button>
+    </form>
+  </div>
+  <div class="mail-list">
+    {% for note in notifications %}
+      <div class="mail-item">
+        <div>
+          <strong>{{ note.title }}</strong>
+          <p>{{ note.body }}</p>
+        </div>
+        <span>{{ note.created_at|datetime }}</span>
+      </div>
+    {% else %}
+      <p class="empty">알림이 없습니다.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

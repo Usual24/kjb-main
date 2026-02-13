@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="form-page">
+  <div class="form-card">
+    <h2>내 프로필 편집</h2>
+    <form method="post" enctype="multipart/form-data">
+      <label>이름</label>
+      <input type="text" name="name" value="{{ profile_user.name }}">
+      <label>프로필 사진 업로드</label>
+      <input type="file" name="avatar_file" accept="image/*">
+      <div class="preview">
+        <img src="{{ profile_user.avatar_url|media }}" alt="현재 프로필">
+      </div>
+      <label>소개</label>
+      <textarea name="bio" rows="4">{{ profile_user.bio }}</textarea>
+      <button class="btn primary" type="submit">저장</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

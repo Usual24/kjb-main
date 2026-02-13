@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="profile">
+  <div class="profile-card">
+    <div class="profile-header">
+      <img src="{{ profile_user.avatar_url|media }}" alt="avatar">
+      <div>
+        <h2>{{ profile_user.name }}</h2>
+        <p>@{{ profile_user.username }}</p>
+        <span class="kc">KC {{ profile_user.kc_points }}</span>
+      </div>
+    </div>
+    <p class="bio">{{ profile_user.bio or '소개가 없습니다.' }}</p>
+    <div class="follow-stats">
+      <span>팔로워 {{ follower_count }}</span>
+      <span>팔로잉 {{ following_count }}</span>
+    </div>
+    {% if current_user and current_user.id != profile_user.id %}
+      <form method="post" action="/follow/{{ profile_user.email_prefix }}">
+        <button class="btn primary" type="submit">{{ '언팔로우' if is_following else '팔로우' }}</button>
+      </form>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

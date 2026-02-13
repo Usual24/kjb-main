@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="form-page">
+  <div class="form-card">
+    <h2>KC 송금</h2>
+    <form method="post">
+      <label>수신자 이메일 앞부분</label>
+      <input type="text" name="recipient" placeholder="user" required>
+      <label>보낼 KC</label>
+      <input type="number" name="amount" min="1" required>
+      <button class="btn primary" type="submit">송금</button>
+    </form>
+  </div>
+</section>
+{% endblock %}
