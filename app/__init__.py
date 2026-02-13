@@ -1,4 +1,6 @@
 """Application factory for KJB chat community."""
+import os
+
 from flask import Flask
 from sqlalchemy import inspect, text
 from .extensions import db, migrate, socketio
@@ -11,6 +13,7 @@ from .models import Channel
 def create_app(config_object="config.Config"):
     app = Flask(__name__)
     app.config.from_object(config_object)
+    os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
     db.init_app(app)
     migrate.init_app(app, db)
