@@ -380,7 +380,11 @@ def clear_mailbox():
 
 @bp.route("/media/<path:filename>")
 def media(filename):
-    return send_from_directory(current_app.config["UPLOAD_FOLDER"], filename)
+    # Keep an explicit local import so this endpoint does not rely on module-level
+    # symbols when serving uploaded files in different runtime reload scenarios.
+    from flask import current_app as flask_current_app
+
+    return send_from_directory(flask_current_app.config["UPLOAD_FOLDER"], filename)
 
 
 @bp.route("/admin", methods=["GET", "POST"])
