@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from sqlalchemy.orm import selectinload
 from flask import (
@@ -381,7 +382,16 @@ def clear_mailbox():
 
 @bp.route("/media/<path:filename>")
 def media(filename):
-    upload_folder = current_app.config.get("UPLOAD_FOLDER")
+    configured = current_app.config.get("UPLOAD_FOLDER")
+    candidates = []
+    if configured:
+        candidates.append(configured)
+        if not os.path.isabs(configured):
+            candidates.append(os.path.normpath(os.path.join(current_app.root_path, "..", configured)))
+    candidates.append(os.path.normpath(os.path.join(current_app.root_path, "..", "uploads")))
+    candidates.append("uploads")
+
+    upload_folder = next((path for path in candidates if os.path.isdir(path)), candidates[0] if candidates else None)
     if not upload_folder:
         abort(404)
     return send_from_directory(upload_folder, filename)
