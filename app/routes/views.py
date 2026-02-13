@@ -494,6 +494,7 @@ def admin():
             channel = Channel.query.get(channel_id)
             if channel:
                 Message.query.filter_by(channel_id=channel.id).delete()
+                UserChannelRead.query.filter_by(channel_id=channel.id).delete()
                 ChannelPermission.query.filter_by(channel_id=channel.id).delete()
                 db.session.delete(channel)
                 db.session.commit()
@@ -535,6 +536,7 @@ def admin():
             item_id = request.form.get("item_id")
             item = ShopItem.query.get(item_id)
             if item:
+                ShopRequest.query.filter_by(item_id=item.id).delete()
                 db.session.delete(item)
                 db.session.commit()
         elif action == "channel_permission_upsert":
@@ -567,6 +569,8 @@ def admin():
             target = User.query.filter_by(email_prefix=prefix).first()
             if target and target.id != current.id:
                 Message.query.filter_by(user_id=target.id).delete()
+                UserChannelRead.query.filter_by(user_id=target.id).delete()
+                ShopRequest.query.filter_by(user_id=target.id).delete()
                 Follow.query.filter_by(follower_id=target.id).delete()
                 Follow.query.filter_by(followed_id=target.id).delete()
                 ChannelPermission.query.filter_by(user_id=target.id).delete()
