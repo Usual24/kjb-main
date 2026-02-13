@@ -284,8 +284,9 @@ def follow(prefix):
 def mypage():
     current = get_current_user()
     if request.method == "POST":
-        # Local import keeps this route resilient if the module-level import list changes.
-        from flask import current_app as flask_current_app
+        # Keep a local Flask module reference so this route doesn't depend on
+        # the module-level `current_app` symbol binding.
+        import flask
 
         current.name = request.form.get("name", current.name).strip()
         current.bio = request.form.get("bio", current.bio).strip()
@@ -293,8 +294,8 @@ def mypage():
         if avatar_file and avatar_file.filename:
             upload_name = save_upload(
                 avatar_file,
-                flask_current_app.config["UPLOAD_FOLDER"],
-                flask_current_app.config["ALLOWED_EXTENSIONS"],
+                flask.current_app.config["UPLOAD_FOLDER"],
+                flask.current_app.config["ALLOWED_EXTENSIONS"],
             )
             if not upload_name:
                 flash("지원하지 않는 파일 형식입니다.")
