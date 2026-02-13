@@ -1,6 +1,7 @@
 from datetime import datetime
 from flask import session
 from flask_socketio import join_room, leave_room, emit
+from sqlalchemy.orm import selectinload
 from .extensions import db
 from .models import (
     Message,
@@ -23,6 +24,39 @@ from .utils import (
 
 online_users = set()
 channel_typing_users = {}
+
+
+def _build_emoji_map_for_user(user):
+    emoji_map = {emoji.name: emoji.image_url for emoji in Emoji.query.filter_by(is_public=True).all()}
+    if user:
+        emoji_map.update(
+            {
+                permission.emoji.name: permission.emoji.image_url
+                for permission in user.emoji_permissions
+            }
+        )
+    return emoji_map
+
+
+def _active_accessory_map(user_ids):
+    if not user_ids:
+        return {}
+    rows = (
+        UserAccessoryPermission.query.options(selectinload(UserAccessoryPermission.accessory))
+        .filter(
+            UserAccessoryPermission.user_id.in_(user_ids),
+            UserAccessoryPermission.is_active.is_(True),
+        )
+        .order_by(
+            UserAccessoryPermission.user_id.asc(),
+            UserAccessoryPermission.created_at.desc(),
+        )
+        .all()
+    )
+    result = {}
+    for row in rows:
+        result.setdefault(row.user_id, row)
+    return result
 
 
 def _current_user():
@@ -124,12 +158,12 @@ def register_socket_handlers(socketio):
         content = (data.get("content") or "").strip()
         reply_to_id = data.get("reply_to")
         if not channel_slug or not content:
-            return
+            return {"ok": False, "error": "메시지 내용을 입력해주세요."}
         channel = Channel.query.filter_by(slug=channel_slug).first()
         if not channel:
-            return
+            return {"ok": False, "error": "채널을 찾을 수 없습니다."}
         if not resolve_channel_permissions(user, channel)["can_send"]:
-            return
+            return {"ok": False, "error": "메시지 전송 권한이 없습니다."}
         message = Message(
             channel_id=channel.id,
             user_id=user.id,
@@ -141,8 +175,9 @@ def register_socket_handlers(socketio):
         db.session.commit()
         _mark_channel_read(user.id, channel.id, message.id)
         db.session.commit()
-        payload = serialize_message(message)
+        payload = serialize_message(message, emoji_map=_build_emoji_map_for_user(user))
         emit("new_message", payload, room=channel_slug)
+        return {"ok": True, "message": payload}
 
     @socketio.on("typing")
     def handle_typing(data):
@@ -203,22 +238,13 @@ def register_socket_handlers(socketio):
         emit("message_deleted", {"message_id": message.id}, room=_channel_slug(message))
 
 
-def serialize_message(message):
+def serialize_message(message, emoji_map=None, active_accessory=None):
     created_at = to_kst(message.created_at)
     updated_at = to_kst(message.updated_at) if message.updated_at else None
-    emoji_map = {
-        emoji.name: emoji.image_url
-        for emoji in Emoji.query.filter_by(is_public=True).all()
-    }
-    emoji_map.update({
-        permission.emoji.name: permission.emoji.image_url
-        for permission in message.user.emoji_permissions
-    })
-    active_accessory = (
-        UserAccessoryPermission.query.filter_by(user_id=message.user_id, is_active=True)
-        .order_by(UserAccessoryPermission.created_at.desc())
-        .first()
-    )
+    if emoji_map is None:
+        emoji_map = _build_emoji_map_for_user(message.user)
+    if active_accessory is None:
+        active_accessory = _active_accessory_map([message.user_id]).get(message.user_id)
     return {
         "id": message.id,
         "channel_id": message.channel_id,
@@ -245,15 +271,34 @@ def serialize_message(message):
     }
 
 
+
+def serialize_messages(messages):
+    if not messages:
+        return []
+    user_ids = sorted({message.user_id for message in messages})
+    accessory_map = _active_accessory_map(user_ids)
+    emoji_map_cache = {}
+    serialized = []
+    for message in messages:
+        emoji_map = emoji_map_cache.get(message.user_id)
+        if emoji_map is None:
+            emoji_map = _build_emoji_map_for_user(message.user)
+            emoji_map_cache[message.user_id] = emoji_map
+        serialized.append(
+            serialize_message(
+                message,
+                emoji_map=emoji_map,
+                active_accessory=accessory_map.get(message.user_id),
+            )
+        )
+    return serialized
+
 def _online_payload():
     users = User.query.filter(User.id.in_(online_users)).all() if online_users else []
+    accessory_map = _active_accessory_map([user.id for user in users])
     payload = []
     for user in users:
-        active_accessory = (
-            UserAccessoryPermission.query.filter_by(user_id=user.id, is_active=True)
-            .order_by(UserAccessoryPermission.created_at.desc())
-            .first()
-        )
+        active_accessory = accessory_map.get(user.id)
         payload.append(
             {
                 "id": user.id,

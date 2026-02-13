@@ -4,7 +4,7 @@ from sqlalchemy import inspect, text
 from .extensions import db, migrate, socketio
 from .routes import views
 from .sockets import register_socket_handlers
-from .utils import init_session, get_current_user, media_url, resolve_channel_permissions
+from .utils import init_session, get_current_user, media_url, get_visible_channels
 from .models import Channel
 
 
@@ -24,11 +24,7 @@ def create_app(config_object="config.Config"):
         current_user = get_current_user()
         channels = Channel.query.order_by(Channel.priority.desc(), Channel.name.asc()).all()
         if current_user and not current_user.is_admin:
-            channels = [
-                channel
-                for channel in channels
-                if resolve_channel_permissions(current_user, channel)["can_view"]
-            ]
+            channels = get_visible_channels(current_user, channels=channels)
         return {
             "current_user": current_user,
             "channels": channels,

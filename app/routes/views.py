@@ -1,4 +1,5 @@
 from datetime import datetime
+from sqlalchemy.orm import selectinload
 from flask import (
     Blueprint,
     render_template,
@@ -38,9 +39,10 @@ from ..utils import (
     save_upload,
     resolve_channel_permissions,
     parse_int,
+    get_visible_channels,
 )
 from ..sockets import online_users
-from ..sockets import serialize_message
+from ..sockets import serialize_messages
 
 bp = Blueprint("views", __name__)
 
@@ -91,11 +93,9 @@ def load_user():
 def index():
     if get_current_user():
         current = get_current_user()
-        for channel in Channel.query.order_by(
-            Channel.priority.desc(), Channel.name.asc()
-        ).all():
-            if resolve_channel_permissions(current, channel)["can_view"]:
-                return redirect(url_for("views.chat", id=channel.slug))
+        visible_channels = get_visible_channels(current)
+        if visible_channels:
+            return redirect(url_for("views.chat", id=visible_channels[0].slug))
     return render_template("index.html")
 
 
@@ -166,12 +166,9 @@ def chat():
     current = get_current_user()
     if not channel_slug:
         first_channel = None
-        for candidate in Channel.query.order_by(
-            Channel.priority.desc(), Channel.name.asc()
-        ).all():
-            if resolve_channel_permissions(current, candidate)["can_view"]:
-                first_channel = candidate
-                break
+        visible_channels = get_visible_channels(current)
+        if visible_channels:
+            first_channel = visible_channels[0]
         if first_channel:
             return redirect(url_for("views.chat", id=first_channel.slug))
     channel = Channel.query.filter_by(slug=channel_slug).first()
@@ -180,13 +177,7 @@ def chat():
         return redirect(url_for("views.index"))
     permissions = resolve_channel_permissions(current, channel)
     if not permissions["can_view"]:
-        allowed = [
-            ch
-            for ch in Channel.query.order_by(
-                Channel.priority.desc(), Channel.name.asc()
-            ).all()
-            if resolve_channel_permissions(current, ch)["can_view"]
-        ]
+        allowed = get_visible_channels(current)
         if allowed:
             return redirect(url_for("views.chat", id=allowed[0].slug))
         flash("접근 가능한 채널이 없습니다.")
@@ -196,19 +187,20 @@ def chat():
     if permissions["can_read"]:
         messages = (
             Message.query.filter_by(channel_id=channel.id)
-            .order_by(Message.created_at.asc())
+            .options(
+                selectinload(Message.user).selectinload(User.emoji_permissions).selectinload(UserEmojiPermission.emoji),
+                selectinload(Message.reply_to),
+            )
+            .order_by(Message.created_at.desc())
             .limit(200)
             .all()
         )
-        serialized_messages = [serialize_message(message) for message in messages]
+        messages.reverse()
+        serialized_messages = serialize_messages(messages)
         if messages:
             _mark_channel_read(current, channel.id, messages[-1].id)
             db.session.commit()
-    visible_channels = [
-        ch
-        for ch in Channel.query.order_by(Channel.priority.desc(), Channel.name.asc()).all()
-        if resolve_channel_permissions(current, ch)["can_view"]
-    ]
+    visible_channels = get_visible_channels(current)
     unread_channel_ids = _compute_unread_channel_ids(current, visible_channels)
     return render_template(
         "chat.html",

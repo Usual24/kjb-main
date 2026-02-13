@@ -1,4 +1,4 @@
-const socket = io();
+const socket = io({ transports: ['websocket', 'polling'] });
 const chatMain = document.querySelector('.chat-main');
 const channel = chatMain.dataset.channel;
 const channelId = parseInt(chatMain.dataset.channelId, 10);
@@ -15,6 +15,10 @@ let contextMessageId = null;
 let contextUserId = null;
 let typing = false;
 let typingTimer = null;
+let lastReadMessageId = 0;
+let readSyncTimer = null;
+let sending = false;
+const queuedMessages = [];
 
 const channelItems = Array.from(document.querySelectorAll('[data-channel-slug][data-channel-id]'));
 const joinedChannelSlugs = new Set(channelItems.map((item) => item.dataset.channelSlug).filter(Boolean));
@@ -41,9 +45,9 @@ function setUnreadDot(targetChannelId, isUnread) {
   });
 }
 
-function markChannelRead(messageId) {
-  if (!messageId) return;
-  const body = new URLSearchParams({ channel, message_id: messageId.toString() });
+function flushReadSync() {
+  if (!lastReadMessageId) return;
+  const body = new URLSearchParams({ channel, message_id: lastReadMessageId.toString() });
   fetch('/chat/read', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -51,6 +55,13 @@ function markChannelRead(messageId) {
   })
     .then(() => setUnreadDot(channelId, false))
     .catch(() => {});
+}
+
+function markChannelRead(messageId) {
+  if (!messageId || messageId <= lastReadMessageId) return;
+  lastReadMessageId = messageId;
+  if (readSyncTimer) clearTimeout(readSyncTimer);
+  readSyncTimer = setTimeout(flushReadSync, 400);
 }
 
 function updateTypingState(nextState) {
@@ -113,6 +124,46 @@ function updateOnlineList(users) {
   });
 }
 
+function setSendDisabled(disabled) {
+  if (!sendButton) return;
+  sendButton.disabled = disabled;
+}
+
+function enqueueMessage(payload) {
+  queuedMessages.push(payload);
+}
+
+function trySend(payload) {
+  if (!payload || sending) return;
+  sending = true;
+  setSendDisabled(true);
+  socket.timeout(5000).emit('send_message', payload, (error, response) => {
+    sending = false;
+    setSendDisabled(!canSend);
+    if (error || !response) {
+      enqueueMessage(payload);
+      return;
+    }
+    if (!response.ok) {
+      return;
+    }
+    if (response.message && response.message.channel_id === channelId) {
+      markChannelRead(response.message.id);
+    }
+  });
+}
+
+function flushQueue() {
+  if (sending || !queuedMessages.length) return;
+  const next = queuedMessages.shift();
+  trySend(next);
+}
+
+socket.on('connect', () => {
+  joinedChannelSlugs.forEach((slug) => socket.emit('join', { channel: slug }));
+  flushQueue();
+});
+
 socket.on('online_update', (users) => {
   updateOnlineList(users);
 });
@@ -161,10 +212,11 @@ socket.on('message_deleted', (payload) => {
 });
 
 sendButton.addEventListener('click', () => {
-  if (!canSend) return;
+  if (!canSend || sending) return;
   const content = input.value.trim();
   if (!content) return;
-  socket.emit('send_message', { channel, content, reply_to: replyToId });
+  const payload = { channel, content, reply_to: replyToId };
+  trySend(payload);
   input.value = '';
   replyToId = null;
   replyBanner.classList.add('hidden');
@@ -213,6 +265,7 @@ window.addEventListener('click', () => {
 window.addEventListener('beforeunload', () => {
   socket.emit('typing', { channel, is_typing: false });
   socket.emit('leave', { channel });
+  flushReadSync();
 });
 
 contextMenu.addEventListener('click', (event) => {
@@ -244,3 +297,4 @@ if (lastMessage) {
   markChannelRead(parseInt(lastMessage.dataset.messageId, 10));
 }
 setUnreadDot(channelId, false);
+setSendDisabled(!canSend);

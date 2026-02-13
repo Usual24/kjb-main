@@ -127,9 +127,16 @@ def resolve_channel_permissions(user, channel):
         return {"can_view": False, "can_read": False, "can_send": False}
     if user.is_admin:
         return {"can_view": True, "can_read": True, "can_send": True}
-    override = ChannelPermission.query.filter_by(
-        user_id=user.id, channel_id=channel.id
-    ).first()
+    permission_cache = getattr(g, "channel_permission_cache", None)
+    if permission_cache is None or permission_cache.get("user_id") != user.id:
+        rows = ChannelPermission.query.filter_by(user_id=user.id).all()
+        permission_cache = {
+            "user_id": user.id,
+            "overrides": {row.channel_id: row for row in rows},
+        }
+        g.channel_permission_cache = permission_cache
+
+    override = permission_cache["overrides"].get(channel.id)
     if override:
         permissions = {
             "can_view": override.can_view,
@@ -147,6 +154,17 @@ def resolve_channel_permissions(user, channel):
         permissions["can_send"] = False
     return permissions
 
+
+
+def get_visible_channels(user, channels=None):
+    if not user:
+        return []
+    channels = channels or []
+    if not channels:
+        from .models import Channel
+
+        channels = Channel.query.order_by(Channel.priority.desc(), Channel.name.asc()).all()
+    return [channel for channel in channels if resolve_channel_permissions(user, channel)["can_view"]]
 
 def parse_int(value):
     if value is None or value == "":
