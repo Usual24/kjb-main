@@ -381,7 +381,10 @@ def clear_mailbox():
 
 @bp.route("/media/<path:filename>")
 def media(filename):
-    upload_folder = current_app.config.get("UPLOAD_FOLDER")
+    # Local import guards against accidental removal of module-level import during refactors.
+    from flask import current_app as flask_current_app
+
+    upload_folder = flask_current_app.config.get("UPLOAD_FOLDER")
     if not upload_folder:
         abort(404)
     return send_from_directory(upload_folder, filename)
